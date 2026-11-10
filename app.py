@@ -4,12 +4,13 @@
 Як це працює:
 1. Користувач у браузері обирає тему (освіта, здоров'я, ігри...) і тисне кнопку.
 2. Браузер надсилає запит POST /api/generate на цей Flask-сервер.
-3. Сервер формує запит (prompt) і звертається до ШІ-моделі Google Gemini.
+3. Сервер формує запит (prompt) і звертається до ШІ-моделі
+   (безкоштовні моделі через OpenRouter або Google Gemini).
 4. Модель повертає JSON: назву, слоган, опис ідеї, емодзі та кольори логотипа.
 5. Сервер перевіряє відповідь і віддає її браузеру, а той малює картку.
 
-Ключ до API НЕ пишемо в код: він береться зі змінної середовища GEMINI_API_KEY
-(на Hugging Face Spaces це "Secret" у налаштуваннях).
+Ключ до API НЕ пишемо в код: він береться зі змінної середовища
+OPENROUTER_API_KEY (або GEMINI_API_KEY) — на Render це Environment Variables.
 """
 
 import json
@@ -25,6 +26,11 @@ API_URL = "https://generativelanguage.googleapis.com/v1beta"
 API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 # Назву моделі можна змінити змінною середовища, не чіпаючи код.
 PREFERRED_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest").strip()
+
+# Альтернатива Gemini: OpenRouter. Роутер "openrouter/free" сам обирає
+# одну з безкоштовних моделей. Якщо задано цей ключ, використовується він.
+OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openrouter/free").strip()
 
 TOPICS = [
     "Освіта", "Здоров'я", "Ігри", "Екологія", "Фінанси",
@@ -113,8 +119,49 @@ def _find_flash_model():
     return sorted(stable or flash)[-1]  # найновіша за назвою
 
 
+def _call_openrouter(prompt):
+    """Запит до безкоштовних моделей OpenRouter (формат як в OpenAI)."""
+    last_error = AIError("ШІ-сервіс не відповів. Спробуйте ще раз.")
+    for _ in range(2):  # безкоштовні моделі іноді збоять — даємо другу спробу
+        try:
+            resp = requests.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {OPENROUTER_KEY}",
+                    "Content-Type": "application/json",
+                    "X-Title": "AI Startup Ideas (PR9)",
+                },
+                json={
+                    "model": OPENROUTER_MODEL,
+                    "messages": [{"role": "user", "content": prompt}],
+                    "temperature": 1.0,
+                },
+                timeout=90,
+            )
+        except requests.RequestException:
+            last_error = AIError("Немає зв'язку з ШІ-сервісом.")
+            continue
+        if resp.status_code in (401, 403):
+            raise AIError("OpenRouter відхилив ключ: перевірте OPENROUTER_API_KEY.")
+        if resp.status_code == 429:
+            raise AIError("Вичерпано безкоштовний ліміт запитів до ШІ. Спробуйте за хвилину.")
+        if not resp.ok:
+            last_error = AIError(f"ШІ-сервіс тимчасово недоступний (код {resp.status_code}).")
+            continue
+        data = resp.json()
+        try:
+            text = data["choices"][0]["message"]["content"] or ""
+        except (KeyError, IndexError, TypeError):
+            continue
+        if "{" in text:
+            return text, data.get("model", OPENROUTER_MODEL)
+    raise last_error
+
+
 def ask_ai(prompt):
-    """Звертається до моделі; якщо її назва застаріла — сам підбирає іншу."""
+    """Обирає сервіс: OpenRouter (якщо є його ключ) або Google Gemini."""
+    if OPENROUTER_KEY:
+        return _call_openrouter(prompt)
     model = _model_cache["name"] or PREFERRED_MODEL
     try:
         text = _call_gemini(model, prompt)
@@ -138,6 +185,8 @@ def _color(value, default):
 
 def parse_idea(text):
     """Перетворює відповідь моделі на охайний словник для картки."""
+    # Деякі моделі спершу пишуть "роздуми" в <think>...</think> — прибираємо їх.
+    text = re.sub(r"<think>.*?</think>", "", text, flags=re.S)
     match = re.search(r"\{.*\}", text, re.S)  # на випадок ```json ... ```
     try:
         raw = json.loads(match.group(0) if match else text)
@@ -181,8 +230,8 @@ def generate():
 
     if not topic:
         return jsonify(error="Оберіть або введіть тему."), 400
-    if not API_KEY:
-        return jsonify(error="На сервері не задано ключ GEMINI_API_KEY."), 503
+    if not (OPENROUTER_KEY or API_KEY):
+        return jsonify(error="На сервері не задано ключ OPENROUTER_API_KEY."), 503
 
     prompt = PROMPT.format(
         topic=topic,
@@ -201,7 +250,7 @@ def generate():
 
 @app.get("/health")
 def health():
-    return jsonify(status="ok", ai_key=bool(API_KEY))
+    return jsonify(status="ok", openrouter=bool(OPENROUTER_KEY), gemini=bool(API_KEY))
 
 
 if __name__ == "__main__":

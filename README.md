@@ -12,15 +12,15 @@ pinned: false
 
 Практична робота №9 «Створення веб-застосунку за допомогою ШІ».
 
-Користувач обирає тему, а ШІ (Google Gemini) видає ідею стартапу, назву, слоган
+Користувач обирає тему, а ШІ (безкоштовні моделі через OpenRouter) видає ідею стартапу, назву, слоган
 і кольори з емодзі для логотипа. Результат показується карткою.
 
 ## Технології
 
 - **Backend:** Python, Flask (`app.py`), запуск через gunicorn
-- **ШІ:** Google Gemini API (запит із сервера, відповідь у форматі JSON)
+- **ШІ:** OpenRouter API, роутер `openrouter/free` (запит із сервера, відповідь у форматі JSON); запасний варіант — Google Gemini
 - **Frontend:** HTML, CSS, JavaScript (`templates/`, `static/`)
-- **Публікація:** Hugging Face Spaces (Docker)
+- **Публікація:** Render (Web Service, з GitHub)
 
 ## Файли
 
@@ -31,13 +31,13 @@ pinned: false
 | `static/app.js` | запит до сервера, побудова картки й логотипа |
 | `static/style.css` | оформлення |
 | `requirements.txt` | бібліотеки Python |
-| `Dockerfile` | збирання для Hugging Face Spaces |
+| `Dockerfile` | запасний варіант запуску через Docker |
 
 ## Локальний запуск
 
 ```
 pip install -r requirements.txt
-set GEMINI_API_KEY=ваш_ключ
+set OPENROUTER_API_KEY=ваш_ключ
 python app.py
 ```
 
@@ -45,5 +45,5 @@ python app.py
 
 ## Ключ API
 
-Ключ не зберігається в коді. На Hugging Face Spaces його треба додати в
-Settings → Variables and secrets → New secret з назвою `GEMINI_API_KEY`.
+Ключ не зберігається в коді. На Render його додано в Environment →
+Environment Variables з назвою `OPENROUTER_API_KEY`.
