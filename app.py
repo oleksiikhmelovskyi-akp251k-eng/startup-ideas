@@ -72,7 +72,12 @@ def _call_gemini(model, prompt):
     if resp.status_code == 429:
         raise AIError("Вичерпано безкоштовний ліміт запитів до ШІ. Спробуйте за хвилину.")
     if resp.status_code in (400, 401, 403):
-        raise AIError("ШІ-сервіс відхилив запит: перевірте ключ GEMINI_API_KEY.")
+        try:
+            reason = resp.json()["error"]["message"]
+        except (ValueError, KeyError, TypeError):
+            reason = resp.text[:200]
+        app.logger.error("Gemini %s: %s", resp.status_code, reason)
+        raise AIError(f"ШІ-сервіс відхилив запит (код {resp.status_code}): {reason}")
     if not resp.ok:
         raise AIError(f"ШІ-сервіс тимчасово недоступний (код {resp.status_code}).")
 
