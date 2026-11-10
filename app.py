@@ -27,10 +27,13 @@ API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
 # Назву моделі можна змінити змінною середовища, не чіпаючи код.
 PREFERRED_MODEL = os.environ.get("GEMINI_MODEL", "gemini-flash-latest").strip()
 
-# Альтернатива Gemini: OpenRouter. Роутер "openrouter/free" сам обирає
-# одну з безкоштовних моделей. Якщо задано цей ключ, використовується він.
+# Альтернатива Gemini: OpenRouter (безкоштовні моделі). Якщо задано цей ключ,
+# використовується він. Основна модель — Google Gemma 4 (добре пише українською);
+# якщо вона зайнята, OpenRouter сам переходить до наступної зі списку
+# (основну модель можна змінити змінною OPENROUTER_MODEL на Render).
 OPENROUTER_KEY = os.environ.get("OPENROUTER_API_KEY", "").strip()
-OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "openrouter/free").strip()
+OPENROUTER_MODEL = os.environ.get("OPENROUTER_MODEL", "google/gemma-4-31b-it:free").strip()
+OPENROUTER_FALLBACKS = ["google/gemma-4-26b-a4b-it:free", "nvidia/nemotron-3-ultra-550b-a55b:free"]
 
 TOPICS = [
     "Освіта", "Здоров'я", "Ігри", "Екологія", "Фінанси",
@@ -40,7 +43,7 @@ TOPICS = [
 PROMPT = """Ти — досвідчений стартап-ментор. Придумай одну оригінальну, реалістичну
 ідею стартапу на тему: "{topic}".{extra}
 
-Відповідай українською. Поверни ТІЛЬКИ JSON-об'єкт з такими полями:
+Усі тексти пиши ТІЛЬКИ українською мовою (крім назви). Поверни ТІЛЬКИ JSON-об'єкт з такими полями:
 - "name": коротка назва стартапу (1-2 слова, можна латиницею);
 - "slogan": слоган до 8 слів;
 - "idea": суть ідеї, 2-3 речення;
@@ -132,11 +135,11 @@ def _call_openrouter(prompt):
                     "X-Title": "AI Startup Ideas (PR9)",
                 },
                 json={
-                    "model": OPENROUTER_MODEL,
+                    "models": [OPENROUTER_MODEL] + OPENROUTER_FALLBACKS,
                     "messages": [{"role": "user", "content": prompt}],
                     "temperature": 1.0,
                 },
-                timeout=90,
+                timeout=50,  # дві спроби по 50 с — менше за таймаут gunicorn (120 с)
             )
         except requests.RequestException:
             last_error = AIError("Немає зв'язку з ШІ-сервісом.")
@@ -183,6 +186,14 @@ def _color(value, default):
     return value if re.fullmatch(r"#[0-9a-fA-F]{6}", value) else default
 
 
+def _emoji(value):
+    """Пропускає лише справжній емодзі (без звичайних літер і цифр)."""
+    value = str(value or "").strip()[:8]
+    if not value or re.search(r"[0-9A-Za-zА-Яа-яІіЇїЄєҐґ]", value):
+        return "🚀"
+    return value
+
+
 def parse_idea(text):
     """Перетворює відповідь моделі на охайний словник для картки."""
     # Деякі моделі спершу пишуть "роздуми" в <think>...</think> — прибираємо їх.
@@ -208,7 +219,7 @@ def parse_idea(text):
         "audience": field("audience", 300),
         "monetization": field("monetization", 300),
         "first_step": field("first_step", 300),
-        "emoji": field("emoji", 8) or "🚀",
+        "emoji": _emoji(raw.get("emoji")),
         "color1": _color(raw.get("color1"), "#6C4DF6"),
         "color2": _color(raw.get("color2"), "#F6A44D"),
     }

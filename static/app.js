@@ -141,8 +141,15 @@ form.addEventListener("submit", async (event) => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ topic, extra: extraInput.value.trim() }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.error || "Помилка сервера.");
+    let data = {};
+    try {
+      data = await response.json();
+    } catch {
+      // сервер повернув не JSON (напр. обірвав надто довгий запит)
+    }
+    if (!response.ok || !data.name) {
+      throw new Error(data.error || "ШІ відповідав задовго. Натисніть ще раз.");
+    }
 
     if (lastIdea) addToHistory(lastIdea); // попередню картку переносимо в історію
     lastIdea = data;

@@ -18,7 +18,7 @@ pinned: false
 ## Технології
 
 - **Backend:** Python, Flask (`app.py`), запуск через gunicorn
-- **ШІ:** OpenRouter API, роутер `openrouter/free` (запит із сервера, відповідь у форматі JSON); запасний варіант — Google Gemini
+- **ШІ:** OpenRouter API, безкоштовна модель Google Gemma 4 із запасними моделями (запит із сервера, відповідь у форматі JSON); запасний варіант — Google Gemini
 - **Frontend:** HTML, CSS, JavaScript (`templates/`, `static/`)
 - **Публікація:** Render (Web Service, з GitHub)
 
@@ -31,6 +31,7 @@ pinned: false
 | `static/app.js` | запит до сервера, побудова картки й логотипа |
 | `static/style.css` | оформлення |
 | `requirements.txt` | бібліотеки Python |
+| `gunicorn.conf.py` | налаштування сервера (таймаут 120 с для повільних моделей) |
 | `Dockerfile` | запасний варіант запуску через Docker |
 
 ## Локальний запуск
