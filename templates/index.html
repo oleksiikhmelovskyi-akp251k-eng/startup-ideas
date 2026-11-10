@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AI-генератор ідей стартапів</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main>
+    <header>
+      <p class="kicker">Практична робота №9 · Flask + Gemini</p>
+      <h1>Генератор ідей стартапів</h1>
+      <p class="lead">Оберіть тему, а ШІ придумає ідею, назву, слоган і логотип.</p>
+    </header>
+
+    <form id="form" autocomplete="off">
+      <div class="chips" id="chips" role="group" aria-label="Тема">
+        {% for t in topics %}
+        <button type="button" class="chip" data-topic="{{ t }}">{{ t }}</button>
+        {% endfor %}
+      </div>
+
+      <label for="topic">Тема</label>
+      <input id="topic" name="topic" maxlength="60" placeholder="наприклад: Освіта" required>
+
+      <label for="extra">Побажання <span class="muted">(необов'язково)</span></label>
+      <input id="extra" name="extra" maxlength="200" placeholder="наприклад: для студентів, без великих вкладень">
+
+      <button id="go" type="submit" class="primary">Згенерувати ідею</button>
+      <p id="status" class="status" role="status" aria-live="polite"></p>
+    </form>
+
+    <section id="result" aria-live="polite"></section>
+
+    <section id="history-box" hidden>
+      <h2>Попередні ідеї</h2>
+      <ul id="history"></ul>
+    </section>
+
+    <footer>Виконав студент групи АКП-25-3к · ІФНТУНГ</footer>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>
